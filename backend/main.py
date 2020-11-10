@@ -1,5 +1,5 @@
 # Import the main application
-from app import application
+from livoreto import application
 
 
 def main():
