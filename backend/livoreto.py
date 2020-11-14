@@ -1,7 +1,5 @@
 # Build-in modules
-import configparser
 import logging
-import os
 from multiprocessing import Process, cpu_count as cpu, ProcessError
 from threading import Thread, ThreadError
 

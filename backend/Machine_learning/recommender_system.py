@@ -9,7 +9,6 @@ from sklearn.ensemble import RandomForestClassifier
 
 # Project modules
 from Book.client import good_reads_client as good_reads
-from messages import send_message_object as send
 
 logger = logging.getLogger(__name__)
 
