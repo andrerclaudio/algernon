@@ -1,18 +1,12 @@
-pandas
-python-telegram-bot
-numpy
-pyzbar
-isbnlib
-requests
-xmltodict
-rauth
-matplotlib
-pytictoc
-pytz
-scikit-learn
-opencv-python
+requests>=2.25.0
+xmltodict>=0.12.0
+rauth>=0.7.3
+pandas>=1.1.4
+scikit-learn>=0.23.2
+
 # ---------------------------------------------------------------------------------- #
 # You have to install via terminal                                                   #
 # sudo apt-get install libzbar0                                                      #
 # sudo apt install python3-opencv                                                    #
 # ---------------------------------------------------------------------------------- #
+
