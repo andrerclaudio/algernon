@@ -2,20 +2,12 @@
 import configparser
 import logging
 import os
-import time
-from _signal import SIGINT, SIGTERM
-from multiprocessing import Process, Manager, cpu_count as cpu, ProcessError
-from queue import Queue
+from multiprocessing import Process, cpu_count as cpu, ProcessError
 from threading import Thread, ThreadError
-
-# Added modules
-from telegram.ext import Updater, MessageHandler, Filters
 
 # Project modules
 from Book.client import WORK_MODE
 from Machine_learning.recommender_system import recommendation_tree
-from system_digest import message_processor_machine as message_digest, picture_processor_machine as picture_digest, \
-    pending_jobs_processor_machine as jobs_digest
 
 if WORK_MODE == 'prod&rasp' or WORK_MODE == 'prod&cloud':
     # Print in file
