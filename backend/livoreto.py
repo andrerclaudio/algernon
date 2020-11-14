@@ -14,6 +14,7 @@ from telegram.ext import Updater, MessageHandler, Filters
 
 # Project modules
 from Book.client import WORK_MODE
+from Machine_learning.recommender_system import recommendation_tree
 from system_digest import message_processor_machine as message_digest, picture_processor_machine as picture_digest, \
     pending_jobs_processor_machine as jobs_digest
 
@@ -128,6 +129,7 @@ def run(queue, telegram, pending_jobs):
     p_running = IdProcessQueue()
 
     while True:
+
         if not queue.message_queue.empty():
 
             update = queue.message_queue.get()
@@ -226,19 +228,20 @@ def application():
     logger.info("Number of cpu: %s", cpu())
 
     # Initialize Queues
-    sys_queue = InitQueue()
+    # sys_queue = InitQueue()
 
     # Initialize pending job dictionary
-    pending_jobs = Manager().dict()
+    # pending_jobs = Manager().dict()
 
     # Initializing Telegram
-    _telegram = InitializeTelegram(sys_queue)
+    # _telegram = InitializeTelegram(sys_queue)
 
     # Start processing all information
-    ThreadingProcessQueue(sys_queue, _telegram, pending_jobs)
+    # ThreadingProcessQueue(sys_queue, _telegram, pending_jobs)
+    ThreadingRecommendation()
 
     # Get ready for any further stop signals
-    _telegram.updater.idle(stop_signals=(SIGINT, SIGTERM))
+    # _telegram.updater.idle(stop_signals=(SIGINT, SIGTERM))
 
 
 def telegram_receive_msg(update, sys_queue):
@@ -263,3 +266,35 @@ def telegram_receive_pic(update, sys_queue):
         logger.info('[Picture queue: {}]'.format(sys_queue.picture_queue.qsize()))
     except Exception as e:
         logger.exception('{}'.format(e))
+
+
+class ThreadingRecommendation(object):
+    """The run() method will be started and it will run in the background until the application exits"""
+
+    def __init__(self):
+        """Constructor"""
+
+        try:
+            thread = Thread(target=run_recommendation,
+                            args=[],
+                            name='Processor')
+
+            thread.daemon = True  # Daemonize thread
+            thread.start()  # Start the execution
+            thread.join()
+        except ThreadError as e:
+            logger.exception('{}'.format(e))
+
+
+def run_recommendation():
+    """Method that runs forever"""
+
+    while True:
+        try:
+            p = Process(target=recommendation_tree,
+                        args=(),
+                        name='Recommendation process!')
+            p.daemon = True
+            p.start()
+        except ProcessError as e:
+            logger.exception('{}'.format(e), exc_info=False)

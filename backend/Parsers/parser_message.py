@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 from matplotlib.dates import DateFormatter
 
 # Project modules
-from Database.file import get_directory_path
 from Machine_learning.turing import finish_prediction_polynomial, week_days_reading, clustering, global_mean
 from menus import add_keyboard, MAIN_MENU_KEYBOARD, YOUR_INFO_KEYBOARDS
 from messages import send_message, send_picture

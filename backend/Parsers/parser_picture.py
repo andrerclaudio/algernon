@@ -3,7 +3,6 @@ import logging
 import os
 
 # Project modules
-from Database.file import get_directory_path
 from Machine_learning.barcode import barcode_parser
 from messages import send_message as send
 

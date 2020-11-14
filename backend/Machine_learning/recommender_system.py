@@ -53,7 +53,7 @@ class CategoricalNumericalLib(object):
                 self.shelf = previous_dict
 
 
-def recommendation_tree(chat_id, telegram, database):
+def recommendation_tree():
     """A book recommendation system based in books you read in the past"""
     # Number of books to take in count making prediction
     n_books = 8
@@ -71,21 +71,8 @@ def recommendation_tree(chat_id, telegram, database):
     # Hold read books Gid
     books_gid = []
 
-    # Load book list history
-    df = database.get_value('tHISTORY')
 
-    if df is not None:
-        # Take the n_books last book
-        df = df.tail(n=n_books)
 
-        for name in df['BOOK_TABLE_NAME'].tolist():
-            df = database.get_value('{}'.format(name))
-            books.append(df['ISBN'][df.index[0]])
-
-    # Load current reading
-    df = database.get_value('tREADING')
-    if df is not None:
-        books.append(df['ISBN'][df.index[0]])
 
     if len(books) > 0:
         # Build the prediction database and fetch its similar books
@@ -138,15 +125,8 @@ def recommendation_tree(chat_id, telegram, database):
                             if str(gid) not in str(books_gid):
                                 info = book_information_lookup(book_id=str(gid))
                                 if info is not False:
-                                    send(chat_id, telegram, '{}'.format(info.link))
                                     # Indicates that we were able to predicts the next book
                                     prediction_problem = False
-
-    if prediction_problem:
-        send(chat_id, telegram, "I am sorry, but we still don't have enough information to suggest your next read! "
-                                "Try again after reading another book.")
-    else:
-        send(chat_id, telegram, 'The recommendations are listed above!')
 
     logger.info('Recommendation task finished!')
 
