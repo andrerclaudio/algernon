@@ -41,7 +41,7 @@ class ThreadingRecommendation(object):
         """Constructor"""
 
         try:
-            thread = Thread(target=run_recommendation,
+            thread = Thread(target=recommendation_tree,
                             args=[],
                             name='Processor')
 

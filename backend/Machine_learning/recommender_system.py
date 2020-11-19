@@ -12,8 +12,17 @@ from Book.client import good_reads_client as good_reads
 
 logger = logging.getLogger(__name__)
 
+NUMBER_MAX_THREADS = 32
 
-class CategoricalNumericalLib(object):
+# Create a Dataframe book information
+COLUMNS_NAMES = ['GID', 'ISBN', 'TITLE', 'AVERAGE_RATING', 'RATINGS_COUNT', 'AUTHOR', 'PUBLISHER']
+qty_popular_shelf = 100
+others_columns = [str(i) for i in range(qty_popular_shelf)]
+COLUMNS_NAMES.extend(others_columns)
+QTY_OF_ROWS = len(COLUMNS_NAMES)
+
+
+class CategoricalToNumericalConverter(object):
     """Create a dictionary with labels and its respective number format"""
 
     def __init__(self):
@@ -54,47 +63,77 @@ class CategoricalNumericalLib(object):
 
 def recommendation_tree():
     """A book recommendation system based in books you read in the past"""
-    # Number of books to take in count making prediction
-    n_books = 8
-    # Create a Dataframe with some book information
-    column_names = ['GID', 'ISBN', 'TITLE', 'AVERAGE_RATING', 'RATINGS_COUNT', 'AUTHOR', 'PUBLISHER']
-    qty_popular_shelf = 100
-    others = [str(i) for i in range(qty_popular_shelf)]
-    column_names.extend(others)
+
     # Initialize the categorical-numerical library
-    cat_num = CategoricalNumericalLib()
+    converter = CategoricalToNumericalConverter()
+
+    similar_books = []
     # Books to be parsed
-    books = []
-    # Flag about Prediction ability
-    prediction_problem = True
-    # Hold read books Gid
-    books_gid = []
+    isbn_list = ['9788532530783', '9788556510785']
+
+    if len(isbn_list) > 0:
+
+        # Fetch all related books ISBN codes information
+        information = set_information(isbn_list)
+
+        for items in information:
+            if len(items.similar_books) > 0:
+                for similar in items.similar_books:
+                    similar_books.append(similar)
+
+        books_prediction_df = pd.DataFrame(columns=COLUMNS_NAMES)
+        list_info = []
+
+        for info in information:
+
+            temp = []
+            b_isbn = int(info.isbn13) if info.isbn13 is not None else int(0)
+            b_gid = int(info.gid) if info.gid is not None else int(0)
+            b_title = str(info.title) if info.title is not None else str('_')
+            b_average_rating = float(info.average_rating) if info.average_rating is not None else int(0)
+            b_ratings_count = int(info.ratings_count) if info.ratings_count is not None else int(0)
+            b_author = str(info.authors[0]) if info.authors[0] is not None else str('_')
+            b_publisher = str(info.publisher) if info.publisher is not None else str('_')
+
+            temp.extend([b_gid, b_isbn, b_title, b_average_rating, b_ratings_count, b_author, b_publisher])
+
+            for j in info.popular_shelves:
+                if len(temp) == QTY_OF_ROWS:
+                    break
+                temp.append(str(j))
+
+            if len(temp) < QTY_OF_ROWS:
+                while len(temp) < QTY_OF_ROWS:
+                    temp.append(None)
+
+            if len(temp) > 0:
+                list_info.append(temp)
+
+        # Add all info into a Pandas Dataframe
+        for data in book_info:
+            books_prediction_df.loc[len(books_prediction_df)] = data
 
 
 
 
-    if len(books) > 0:
         # Build the prediction database and fetch its similar books
-        df_predict, similar_books = set_dataframe(books, column_names, cat_num)
+        read_books_info, similar_books_info = set_dataframe(isbn_list, converter)
 
-        if not df_predict.empty:
-
-            books_gid.extend((df_predict['GID']).tolist())
+        if not read_books_info.empty:
 
             # Check if there are similar books
-            if len(similar_books) > 0:
+            if len(similar_books_info) > 0:
                 # Build the training database
-                training_database, similar_books = set_dataframe(similar_books, column_names, cat_num,
-                                                                 isbn_values=False)
+                training_database, similar_books_info = set_dataframe(similar_books_info, converter)
 
                 if not training_database.empty:
 
                     # Adjust the dataframe information
-                    col_names = column_names[7:]
+                    col_names = COLUMNS_NAMES[7:]
                     col = ['AVERAGE_RATING', 'RATINGS_COUNT', 'AUTHOR', 'PUBLISHER']
                     col.extend(col_names)
 
-                    y_pred = run_prediction(training_database, df_predict, col)
+                    y_pred = run_prediction(training_database, read_books_info, col)
 
                     if len(y_pred) > 0:
 
@@ -106,15 +145,15 @@ def recommendation_tree():
 
                         new_isbn = []
                         for gid in y_pred:
-                            info = book_information_lookup(book_id=gid)
+                            info = book_information_lookup(gid=gid)
                             if info is not False:
                                 new_isbn.append(int(info.isbn13) if info.isbn13 is not None else int(0))
 
                         if len(new_isbn) > 0:
-                            df_predict, similar_books = set_dataframe(new_isbn, column_names, cat_num)
+                            read_books_info, similar_books_info = set_dataframe(new_isbn, converter)
 
-                            if not df_predict.empty:
-                                y = run_prediction(training_database, df_predict, col)
+                            if not read_books_info.empty:
+                                y = run_prediction(training_database, read_books_info, col)
                                 y_pred.extend(y)
 
                                 # Remove redundancy items
@@ -122,7 +161,7 @@ def recommendation_tree():
 
                         for gid in y_pred:
                             if str(gid) not in str(books_gid):
-                                info = book_information_lookup(book_id=str(gid))
+                                info = book_information_lookup(gid=str(gid))
                                 if info is not False:
                                     # Indicates that we were able to predicts the next book
                                     prediction_problem = False
@@ -130,6 +169,70 @@ def recommendation_tree():
     logger.info('Recommendation task finished!')
 
     return
+
+
+def set_information(isbn_list):
+    """ """
+    new_threads = 0
+    count = 0
+    info = []
+    running_processes = []
+
+    # Initialize data sharing
+    info_queue = Queue()
+
+    logger.info('Starting fetching process ...')
+
+    while len(isbn_list) > 0:
+        running_processes.clear()
+        while (new_threads <= NUMBER_MAX_THREADS - 1) and (len(isbn_list) > 0):
+            isbn_code = isbn_list.pop()
+            try:
+                t = Thread(target=book_information_lookup, args=[isbn_code, info_queue])
+
+                t.daemon = True  # Daemonize thread
+                t.start()  # Start the execution
+                running_processes.append(t)
+                new_threads += 1
+            except ThreadError as e:
+                logger.exception('{}'.format(e), exc_info=False)
+                isbn_list.append(isbn_code)
+        # Wail for all processes to finish
+        [t.join() for t in running_processes]
+        count += new_threads
+        logger.info('Remaining {} ISBNs codes to fetch.'.format(len(isbn_list)))
+        new_threads = 0
+
+    while not info_queue.empty():
+        ret = info_queue.get()
+        if ret is not False:
+            info.append(ret)
+
+    return info
+
+
+def book_information_lookup(isbn, info_queue):
+    """Get info about a book"""
+    info = False
+    try:
+        info = good_reads.book(isbn=isbn)
+    except Exception as e:
+        logger.exception('{}'.format(e), exc_info=False)
+    finally:
+        info_queue.put(info)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def run_prediction(train_database, predict_database, columns):
@@ -170,76 +273,25 @@ def sorting_rows(dataframe):
     return sorted_values
 
 
-def database_lookup(books, max_row_qty):
-    """ """
-    number_of_desire_thread = 32
-    new_threads = 0
-    activities_count = len(books)
-    count = 0
-
-    # Initialize data sharing
-    info_queue = Queue()
-    book_queue = Queue()
-    running_processes = []
-
-    logger.info('Starting fetching process ...')
-
-    while len(books) > 0:
-        running_processes.clear()
-        while (new_threads <= number_of_desire_thread - 1) and (len(books) > 0):
-            name = books.pop()
-            try:
-                t = Thread(target=book_info_organizer, args=[name, info_queue, book_queue, max_row_qty])
-
-                t.daemon = True  # Daemonize thread
-                t.start()  # Start the execution
-                running_processes.append(t)
-                new_threads += 1
-            except ThreadError as e:
-                logger.exception('{}'.format(e), exc_info=False)
-                books.append(name)
-        # Wail for all processes to finish
-        [t.join() for t in running_processes]
-        count += new_threads
-        logger.info('Fetched {} of {}'.format(count, activities_count))
-        new_threads = 0
-
-    book_info = []
-    while not info_queue.empty():
-        book_info.append(info_queue.get())
-
-    similar_books = []
-    try:
-        while not book_queue.empty():
-            [similar_books.append(str(i)) for i in book_queue.get()]
-    except Exception as e:
-        logger.exception(e, exc_info=False)
-    finally:
-        # Take unique values
-        similar_books = list(set(similar_books))
-
-    return book_info, similar_books
 
 
-def set_dataframe(books, column_names, cat_num, isbn_values=True):
+
+def set_dataframe(isbn_list, converter):
     """ """
     book_name = []
 
     # Predict database
-    database = pd.DataFrame(columns=column_names)
+    database = pd.DataFrame(columns=COLUMNS_NAMES)
 
-    if isbn_values:
-        for isbn in books:
-            info = book_information_lookup(isbn=isbn)
-            if info is not False:
-                book_name.append(str(info.title) if info.title is not None else str('_'))
-    else:
-        book_name = books
+    for isbn in isbn_list:
+        info = book_information_lookup(isbn=isbn)
+        if info is not False:
+            book_name.append(str(info.title) if info.title is not None else str('_'))
 
     if len(book_name) > 0:
 
         # For a given book list, find its information and similar books
-        book_info, similar_books = database_lookup(book_name, len(column_names))
+        book_info, similar_books = set_information(isbn_list)
 
         # Add all info into a Pandas Dataframe
         for data in book_info:
@@ -247,25 +299,25 @@ def set_dataframe(books, column_names, cat_num, isbn_values=True):
 
         # Check if we have material to make predictions
         if not database.empty:
-            cat_num.convert_label((database['TITLE'].tolist()), title=True)
-            database.replace({'TITLE': cat_num.title}, inplace=True)
+            converter.convert_label((database['TITLE'].tolist()), title=True)
+            database.replace({'TITLE': converter.title}, inplace=True)
 
-            cat_num.convert_label((database['AUTHOR'].tolist()), author=True)
-            database.replace({'AUTHOR': cat_num.author}, inplace=True)
+            converter.convert_label((database['AUTHOR'].tolist()), author=True)
+            database.replace({'AUTHOR': converter.author}, inplace=True)
 
-            cat_num.convert_label((database['PUBLISHER'].tolist()), publisher=True)
-            database.replace({'PUBLISHER': cat_num.publisher}, inplace=True)
+            converter.convert_label((database['PUBLISHER'].tolist()), publisher=True)
+            database.replace({'PUBLISHER': converter.publisher}, inplace=True)
 
             values = []
             col = [i for i in database.columns][7:]
             [values.extend(database[i].tolist()) for i in col]
 
-            cat_num.convert_label(values, shelf=True)
-            [database.replace({i: cat_num.shelf}, inplace=True) for i in col]
+            converter.convert_label(values, shelf=True)
+            [database.replace({i: converter.shelf}, inplace=True) for i in col]
 
             sorted_values = sorting_rows(database)
 
-            df = pd.DataFrame(sorted_values, columns=column_names)
+            df = pd.DataFrame(sorted_values, columns=COLUMNS_NAMES)
 
             # Take unique values
             similar_books = list(set(similar_books))
@@ -275,61 +327,45 @@ def set_dataframe(books, column_names, cat_num, isbn_values=True):
     return database, book_name
 
 
-def book_info_organizer(book_name, book_info, similar_books, max_row_qty):
+def book_info_organizer(isbn, book, similar):
     """ """
     list_info = []
     books = []
 
-    # Find Good Reads Id
-    gid = find_good_reads_id(str(book_name))
-    if int(gid) > 0:
-        # Fetch book information
-        info = book_information_lookup(book_id=gid)
-        if info is not False:
-            b_isbn = int(info.isbn13) if info.isbn13 is not None else int(0)
-            b_gid = int(info.gid) if info.gid is not None else int(0)
-            b_title = str(info.title) if info.title is not None else str('_')
-            b_average_rating = float(info.average_rating) if info.average_rating is not None else int(0)
-            b_ratings_count = int(info.ratings_count) if info.ratings_count is not None else int(0)
-            b_author = str(info.authors[0]) if info.authors[0] is not None else str('_')
-            b_publisher = str(info.publisher) if info.publisher is not None else str('_')
+    # Fetch book information
+    book_information_lookup(isbn=isbn)
 
-            list_info.extend([b_gid, b_isbn, b_title, b_average_rating, b_ratings_count, b_author, b_publisher])
+    if info is not False:
+        b_isbn = int(info.isbn13) if info.isbn13 is not None else int(0)
+        b_gid = int(info.gid) if info.gid is not None else int(0)
+        b_title = str(info.title) if info.title is not None else str('_')
+        b_average_rating = float(info.average_rating) if info.average_rating is not None else int(0)
+        b_ratings_count = int(info.ratings_count) if info.ratings_count is not None else int(0)
+        b_author = str(info.authors[0]) if info.authors[0] is not None else str('_')
+        b_publisher = str(info.publisher) if info.publisher is not None else str('_')
 
-            for j in info.popular_shelves:
-                if len(list_info) == max_row_qty:
-                    break
-                list_info.append(str(j))
+        list_info.extend([b_gid, b_isbn, b_title, b_average_rating, b_ratings_count, b_author, b_publisher])
 
-            if len(list_info) < max_row_qty:
-                while len(list_info) < max_row_qty:
-                    list_info.append(None)
+        for j in info.popular_shelves:
+            if len(list_info) == QTY_OF_ROWS:
+                break
+            list_info.append(str(j))
 
-            try:
-                if len(info.similar_books) > 0:
-                    ret = list(info.similar_books)
-                    # _ = ret.pop()
-                    books.extend(ret)
-                    similar_books.put(books)
-            except Exception as e:
-                logger.exception(e, exc_info=False)
+        if len(list_info) < QTY_OF_ROWS:
+            while len(list_info) < QTY_OF_ROWS:
+                list_info.append(None)
 
-            if len(list_info) > 0:
-                book_info.put(list_info)
+        try:
+            if len(info.similar_books) > 0:
+                ret = list(info.similar_books)
+                books.extend(ret)
+                similar.put(books)
+        except Exception as e:
+            logger.exception(e, exc_info=False)
 
+        if len(list_info) > 0:
+            book.put(list_info)
 
-def book_information_lookup(book_id=None, isbn=None):
-    """Get info about a book"""
-    info = False
-    try:
-        if book_id:
-            info = good_reads.book(book_id=book_id)
-        elif isbn:
-            info = good_reads.book(isbn=isbn)
-    except Exception as e:
-        logger.exception('{}'.format(e), exc_info=False)
-    finally:
-        return info
 
 
 def find_good_reads_id(name):
