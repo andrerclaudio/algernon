@@ -8,8 +8,6 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 
 # Project modules
-from sklearn.neural_network import MLPClassifier
-
 from Book.client import good_reads_client as good_reads
 
 logger = logging.getLogger(__name__)
@@ -265,11 +263,11 @@ def run_prediction(train_database, predict_database):
     y_train = y_train.astype('int')
 
     # Create a Random Forest Classifier
-    # logger.info('Running Random Forest Classifier!')
-    # clf = RandomForestClassifier(n_estimators=1000)
+    logger.info('Running Random Forest Classifier!')
+    clf = RandomForestClassifier(n_estimators=1000)
 
-    logger.info('Running Neural Network!')
-    clf = MLPClassifier(hidden_layer_sizes=(100,), random_state=1, max_iter=300, solver='adam', activation='tanh')
+    # logger.info('Running Neural Network!')
+    # clf = MLPClassifier(hidden_layer_sizes=(100,), random_state=1, max_iter=300, solver='adam', activation='tanh')
 
     # Create a SVM Classifier
     # logger.info('Running SVM Classifier!')
