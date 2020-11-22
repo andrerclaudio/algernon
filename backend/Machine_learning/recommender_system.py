@@ -118,11 +118,20 @@ def recommendation_tree():
         # Remove duplicate values from Pandas Dataframe
         similarity_dataframe.drop_duplicates(subset='ISBN', keep='first', inplace=True)
 
+        numerical_books_dataframe = pd.DataFrame()
+        numerical_similarity_dataframe = pd.DataFrame()
         numerical_books_dataframe = converter.transpose_data(books_dataframe)
         numerical_similarity_dataframe = converter.transpose_data(similarity_dataframe)
 
         # Run prediction
-        y_pred = run_prediction(numerical_similarity_dataframe, numerical_books_dataframe)
+        y_pred = list(set(run_prediction(numerical_similarity_dataframe, numerical_books_dataframe)))
+
+        for codes in y_pred:
+            i = numerical_similarity_dataframe[(numerical_similarity_dataframe['ISBN'] == codes)].index
+            numerical_similarity_dataframe.drop(i, inplace=True)
+
+        # Run prediction
+        y_pred.append(list(set(run_prediction(numerical_similarity_dataframe, numerical_books_dataframe))))
 
         # Show predicted books
         ret, _ = set_information(y_pred)
