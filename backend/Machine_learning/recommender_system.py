@@ -3,6 +3,7 @@ import logging
 from queue import Queue
 from threading import Thread, ThreadError
 
+import isbnlib
 # Added modules
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
@@ -57,7 +58,8 @@ class CategoricalToNumericalConverter(object):
         [values.extend(df[i].tolist()) for i in col]
 
         convert_to_numerical(values, self.shelf)
-        [df.replace({i: self.shelf}, inplace=True) for i in col]
+        for i in col:
+            df.replace({i: self.shelf}, inplace=True)
 
         return df
 
@@ -78,6 +80,21 @@ def recommendation_tree():
         # Add all info into a Pandas Dataframe
         books_dataframe = create_dataframe(information)
 
+        # Find the other books from the same authors
+        authors = books_dataframe['AUTHOR'].tolist()
+        others = []
+        for name in authors:
+            ret = good_reads.find_author(name)
+            if ret:
+                for books in ret.books:
+                    if type(books.isbn13) is str:
+                        others.append(books.isbn13)
+                    else:
+                        pass
+
+        # Add these books to similar
+        similarity.extend(others)
+
         # 1° turn of fetching similar books
         information, similarity = set_information(similarity)
         # Add all info into a Pandas Dataframe
@@ -88,10 +105,15 @@ def recommendation_tree():
         # Add all info into a Pandas Dataframe
         similarity_dataframe = pd.concat([create_dataframe(information), similarity_dataframe], ignore_index=True)
 
-        # 3° turn of fetching similar books
-        information, similarity = set_information(similarity)
-        # Add all info into a Pandas Dataframe
-        similarity_dataframe = pd.concat([create_dataframe(information), similarity_dataframe], ignore_index=True)
+        # # 3° turn of fetching similar books
+        # information, similarity = set_information(similarity)
+        # # Add all info into a Pandas Dataframe
+        # similarity_dataframe = pd.concat([create_dataframe(information), similarity_dataframe], ignore_index=True)
+
+        # # 4° turn of fetching similar books
+        # information, similarity = set_information(similarity)
+        # # Add all info into a Pandas Dataframe
+        # similarity_dataframe = pd.concat([create_dataframe(information), similarity_dataframe], ignore_index=True)
 
         # Remove duplicate values from Pandas Dataframe
         similarity_dataframe.drop_duplicates(subset='ISBN', keep='first', inplace=True)
@@ -102,38 +124,11 @@ def recommendation_tree():
         # Run prediction
         y_pred = run_prediction(numerical_similarity_dataframe, numerical_books_dataframe)
 
-        if len(y_pred) > 0:
+        # Show predicted books
+        ret, _ = set_information(y_pred)
+        predicted_books = create_dataframe(ret)
 
-            for gid in y_pred:
-                training_database.drop(training_database[training_database['GID'] == gid].index,
-                                       inplace=True)
-
-            training_database.reset_index()
-
-            new_isbn = []
-            for gid in y_pred:
-                info = book_information_lookup(gid=gid)
-                if info is not False:
-                    new_isbn.append(int(info.isbn13) if info.isbn13 is not None else int(0))
-
-            if len(new_isbn) > 0:
-                read_books_info, similar_books_info = set_dataframe(new_isbn, converter)
-
-                if not read_books_info.empty:
-                    y = run_prediction(training_database, read_books_info, col)
-                    y_pred.extend(y)
-
-                    # Remove redundancy items
-                    y_pred = list(set(y_pred))
-
-            for gid in y_pred:
-                if str(gid) not in str(books_gid):
-                    info = book_information_lookup(gid=str(gid))
-                    if info is not False:
-                        # Indicates that we were able to predicts the next book
-                        prediction_problem = False
-
-    logger.info('Recommendation task finished!')
+        logger.info(predicted_books['TITLE'])
 
     return
 
@@ -169,7 +164,7 @@ def set_information(isbn_list):
         # Wail for all processes to finish
         [t.join() for t in running_processes]
         count += new_threads
-        logger.info('Remaining {} ISBNs codes to fetch.'.format(len(isbn_list)))
+        logger.info('Remaining {} ISBN codes to fetch.'.format(len(isbn_list)))
         new_threads = 0
 
     while not info_queue.empty():
@@ -180,21 +175,25 @@ def set_information(isbn_list):
     # It is needed to avoid breaking in case of missing information
     try:
         for items in information:
-            if len(items.similar_books) > 0:
+            if len(items.similar_books) and (type(items.similar_books) is list) > 0:
                 for similar in items.similar_books:
                     similar_books.append(similar)
     except Exception as e:
         logger.exception('{}'.format(e), exc_info=False)
 
-    for info in similar_books:
-        if (info.isbn13 is not None) and (str(info.isbn13).isnumeric()):
-            similar_books_isbn_list.append(int(info.isbn13))
-        else:
-            int(0)
+    try:
+        for info in similar_books:
+            if (info.isbn13 is not None) and (str(info.isbn13).isnumeric()):
+                similar_books_isbn_list.append(int(info.isbn13))
+            else:
+                int(0)
+    except Exception as e:
+        logger.exception('{}'.format(e), exc_info=False)
 
-    similar_books_isbn_list = list(set(similar_books_isbn_list))
-    if 0 in similar_books_isbn_list:
-        similar_books_isbn_list.remove(0)
+    if len(similar_books_isbn_list) > 0:
+        similar_books_isbn_list = list(set(similar_books_isbn_list))
+        if 0 in similar_books_isbn_list:
+            similar_books_isbn_list.remove(0)
 
     return information, similar_books_isbn_list
 
@@ -202,12 +201,16 @@ def set_information(isbn_list):
 def book_information_lookup(isbn, info_queue):
     """Get info about a book"""
     info = False
-    try:
-        info = good_reads.book(isbn=isbn)
-    except Exception as e:
-        logger.exception('{}'.format(e), exc_info=False)
-    finally:
-        info_queue.put(info)
+
+    isbn = str(isbn)
+    # ret = isbnlib.to_isbn13(isbn) if isbnlib.is_isbn10(isbn) else isbn
+    if isbnlib.is_isbn13(isbn):
+        try:
+            info = good_reads.book(isbn=isbn)
+        except Exception as e:
+            logger.exception('{}'.format(e), exc_info=False)
+        finally:
+            info_queue.put(info)
 
 
 def create_dataframe(information):
@@ -264,7 +267,7 @@ def run_prediction(train_database, predict_database):
 
     # Create a Random Forest Classifier
     logger.info('Running Random Forest Classifier!')
-    clf = RandomForestClassifier(n_estimators=1000)
+    clf = RandomForestClassifier(n_estimators=100)
 
     # logger.info('Running Neural Network!')
     # clf = MLPClassifier(hidden_layer_sizes=(100,), random_state=1, max_iter=300, solver='adam', activation='tanh')
