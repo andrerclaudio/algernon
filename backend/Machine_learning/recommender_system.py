@@ -3,10 +3,11 @@ import logging
 from queue import Queue
 from threading import Thread, ThreadError
 
-import isbnlib
 # Added modules
+import isbnlib
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 
 # Project modules
 from Book.client import good_reads_client as good_reads
@@ -43,16 +44,19 @@ class CategoricalToNumericalConverter(object):
         self.shelf = {}
 
     def transpose_data(self, dataframe):
-
+        logger.debug("Categorizing label 'TITLE' to numbers!")
         convert_to_numerical(dataframe['TITLE'].tolist(), self.title)
         df = dataframe.replace({'TITLE': self.title})
 
+        logger.debug("Categorizing label 'AUTHOR' to numbers!")
         convert_to_numerical(df['AUTHOR'].tolist(), self.author)
         df.replace({'AUTHOR': self.author}, inplace=True)
 
+        logger.debug("Categorizing label 'PUBLISHER' to numbers!")
         convert_to_numerical(df['PUBLISHER'].tolist(), self.publisher)
         df.replace({'PUBLISHER': self.publisher}, inplace=True)
 
+        logger.debug("Categorizing label 'other COLUMNS' to numbers!")
         values = []
         col = [i for i in df.columns][INITIAL_POPULAR_SHELF_INDEX:]
         [values.extend(df[i].tolist()) for i in col]
@@ -137,7 +141,7 @@ def recommendation_tree():
         ret, _ = set_information(y_pred)
         predicted_books = create_dataframe(ret)
 
-        logger.info(predicted_books['TITLE'])
+        print(predicted_books['TITLE'])
 
     return
 
@@ -270,25 +274,31 @@ def run_prediction(train_database, predict_database):
     columns = ['AVERAGE_RATING', 'RATINGS_COUNT', 'AUTHOR', 'PUBLISHER']
     columns.extend(col_names)
 
-    x_train = train_database[columns]
-    y_train = train_database['ISBN']
-    y_train = y_train.astype('int')
+    x = train_database[columns]
+    y = train_database['ISBN']
+    y = y.astype('int')
 
     # Create a Random Forest Classifier
     logger.info('Running Random Forest Classifier!')
     clf = RandomForestClassifier(n_estimators=100)
 
-    # logger.info('Running Neural Network!')
-    # clf = MLPClassifier(hidden_layer_sizes=(100,), random_state=1, max_iter=300, solver='adam', activation='tanh')
-
-    # Create a SVM Classifier
-    # logger.info('Running SVM Classifier!')
-    # clf = SVC(kernel='rbf')
+    # Splitting the dataset into the Training set and Test set
+    X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.25, random_state=0)
 
     # Train the model
-    clf.fit(x_train, y_train)
+    clf.fit(x, y)
+    # y_pred_test = clf.predict(X_test)
 
-    x_test = predict_database[columns]
-    y_pred = clf.predict(x_test)
+    x_predicted = predict_database[columns]
+    y_predicted = clf.predict(x_predicted)
 
-    return list(set(y_pred))
+    # df_copy = train_database.copy()
+    # asd = y_pred.tolist()
+    #
+    # index = df_copy[(df_copy['ISBN'] != asd[0])].index
+    # df_copy.drop(index, inplace=True)
+
+    # Evaluating the Algorithm
+    # print('Mean Absolute Error: ', accuracy_score(y_test, y_pred_test))
+
+    return list(set(y_predicted))

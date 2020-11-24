@@ -16,7 +16,7 @@ if WORK_MODE == 'prod&rasp' or WORK_MODE == 'prod&cloud':
                         datefmt='%d/%b/%Y - %H:%M:%S')
 else:
     # Print in software terminal
-    logging.basicConfig(level=logging.INFO,
+    logging.basicConfig(level=logging.DEBUG,
                         format='%(asctime)s | %(process)d | %(name)s | %(levelname)s:  %(message)s',
                         datefmt='%d/%b/%Y - %H:%M:%S')
 
