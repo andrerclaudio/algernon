@@ -8,13 +8,7 @@ from threading import ThreadError, Thread
 from pytictoc import TicToc
 
 # Project modules
-
-# Print in file
-# logging.basicConfig(filename='logs.log',
-#                     filemode='w',
-#                     level=logging.INFO,
-#                     format='%(asctime)s | %(process)d | %(name)s | %(levelname)s:  %(message)s',
-#                     datefmt='%d/%b/%Y - %H:%M:%S')
+from Book.client import GoodReadsClient
 
 # Print in software terminal
 logging.basicConfig(level=logging.INFO,
@@ -50,9 +44,9 @@ class ThreadingProcessQueue(object):
         """
         self.interval = interval
 
-        thread = Thread(target=run, args=(self.interval,), name='Thread_name')
-        thread.daemon = True  # Daemonize thread
-        thread.start()  # Start the execution
+        t = Thread(target=run, args=(self.interval,), name='Thread_name')
+        t.daemon = True  # Daemonize thread
+        t.start()  # Start the execution
 
 
 def run(interval):
@@ -71,3 +65,29 @@ def run(interval):
 def application():
     """" All application has its initialization from here """
     logger.info('Main application is running!')
+
+    good_reads = GoodReadsClient()
+
+    gid = 0
+
+    # ISBN related functions
+    book = isbn_lookup(gid, good_reads)
+    # Check for a valid information
+    if len(book) > 0:
+        pass
+
+
+def isbn_lookup(gid, good_reads):
+    """
+    Fetch in Good Reads for a given ISBN code
+    """
+    book = {}
+
+    try:
+        book = good_reads.book(book_id=gid)
+
+    except Exception as e:
+        logger.exception('{}'.format(e), exc_info=False)
+
+    finally:
+        return book
