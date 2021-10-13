@@ -1,6 +1,7 @@
 # Build-in modules
 import collections
 import configparser
+import logging
 import webbrowser
 
 # Project modules
@@ -14,6 +15,8 @@ from .request import GoodreadsRequest
 from .review import GoodreadsReview
 from .session import GoodreadsSession
 from .user import GoodreadsUser
+
+logger = logging.getLogger(__name__)
 
 
 class GoodReadsInitializer(object):
@@ -104,14 +107,25 @@ class GoodReadsClient(object):
 
     def book(self, book_id=None, isbn=None):
         """Get info about a book"""
-        if book_id:
-            resp = self.request("book/show", {'id': book_id})
-            return GoodreadsBook(resp['book'], self)
-        elif isbn:
-            resp = self.request("book/isbn", {'isbn': isbn})
-            return GoodreadsBook(resp['book'], self)
-        else:
-            raise GoodReadsClientException("book id or isbn required")
+
+        ret = None
+
+        try:
+
+            if book_id:
+                resp = self.request("book/show", {'id': book_id})
+                ret = GoodreadsBook(resp['book'], self)
+            elif isbn:
+                resp = self.request("book/isbn", {'isbn': isbn})
+                ret = GoodreadsBook(resp['book'], self)
+            else:
+                raise GoodReadsClientException("book id or isbn required")
+
+        except Exception as e:
+            logger.exception('{}'.format(e), exc_info=False)
+
+        finally:
+            return ret
 
     def search_books(self, q, page=1, search_field='all'):
         """Get the most popular books for the given query. This will search all

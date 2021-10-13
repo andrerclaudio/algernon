@@ -1,6 +1,10 @@
+import logging
+
 """Goodreads book class"""
 from . import author
 from . import shelf
+
+logger = logging.getLogger(__name__)
 
 
 class GoodreadsBook:
@@ -14,24 +18,54 @@ class GoodreadsBook:
     @property
     def gid(self):
         """Goodreads id of the book"""
-        return self._book_dict['id']
+
+        ret = None
+
+        try:
+            ret = self._book_dict['id']
+
+        except Exception as e:
+            logger.exception('{}'.format(e), exc_info=False)
+
+        finally:
+            return ret
 
     @property
     def title(self):
         """Title of the book"""
-        return self._book_dict['title']
+
+        ret = None
+
+        try:
+            ret = self._book_dict['title']
+
+        except Exception as e:
+            logger.exception('{}'.format(e), exc_info=False)
+
+        finally:
+            return ret
 
     @property
     def authors(self):
         """Authors of the book"""
         # Goodreads API returns a list if there are more than one authors,
         # otherwise, just the OrderedDict
-        if type(self._book_dict['authors']['author']) == list:
-            return [author.GoodreadsAuthor(author_dict, self._client)
-                    for author_dict in self._book_dict['authors']['author']]
-        else:
-            return [author.GoodreadsAuthor(self._book_dict['authors']['author'],
-                                           self._client)]
+
+        ret = None
+
+        try:
+
+            if type(self._book_dict['authors']['author']) == list:
+                ret = [author.GoodreadsAuthor(author_dict, self._client)
+                       for author_dict in self._book_dict['authors']['author']]
+            else:
+                ret = [author.GoodreadsAuthor(self._book_dict['authors']['author'], self._client)]
+
+        except Exception as e:
+            logger.exception('{}'.format(e), exc_info=False)
+
+        finally:
+            return ret
 
     @property
     def description(self):
@@ -144,5 +178,14 @@ class GoodreadsBook:
     @property
     def similar_books(self):
         """Return the list of similar books."""
-        return [GoodreadsBook(b, self._client)
-                for b in self._book_dict['similar_books']['book']]
+
+        ret = None
+
+        try:
+            ret = [GoodreadsBook(b, self._client) for b in self._book_dict['similar_books']['book']]
+
+        except Exception as e:
+            logger.exception('{}'.format(e), exc_info=False)
+
+        finally:
+            return ret

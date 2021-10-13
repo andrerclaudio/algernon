@@ -21,7 +21,8 @@ logging.basicConfig(level=logging.INFO,
 
 logger = logging.getLogger(__name__)
 
-MAX_NUMBER_OF_THREADS = 4
+MAX_NUMBER_OF_THREADS = 512
+MAX_GID = 9999998
 
 
 class ElapsedTime(object):
@@ -80,7 +81,7 @@ def application():
     # Append current directory to the python path
     sys.path.append(path)
 
-    gid = 1
+    gid = 0
     fail = []
     running_processes = []
     all_books = False
@@ -105,7 +106,7 @@ def application():
 
             finally:
                 gid += 1
-                if gid == 9:
+                if gid == MAX_GID:
                     gid -= 1
                     all_books = True
                     break
@@ -122,50 +123,56 @@ def application():
 def fetch_book(good_reads, path, gid, fail):
     try:
 
-        directory = str(gid)
-        path = os.path.join(path, directory)
-
-        # Create the directory
-        os.mkdir(path)
+        gid = str(gid)
 
         # Fetch book information
-        book = good_reads.book(book_id=gid)
+        book = good_reads.book(book_id=int(gid))
 
-        url = book.image_url
-        response = requests.get(url)
-        if response.status_code == 200:
-            with open(path + '/cover.jpg', 'wb') as f:
-                f.write(response.content)
+        if book:
 
-        with open(path + '/info.json', 'w') as f:
+            directory = gid
+            path = os.path.join(path, directory)
 
-            info = {'authors': str(book.authors),
-                    'average_rating': book.average_rating,
-                    'description': book.description,
-                    'edition_information': book.edition_information,
-                    'format': book.format,
-                    'gid': book.gid,
-                    'image_url': book.image_url,
-                    'is_ebook': book.is_ebook,
-                    'isbn': book.isbn,
-                    'isbn13': book.isbn13,
-                    'language_code': book.language_code,
-                    'link': book.link,
-                    'num_pages': book.num_pages,
-                    'popular_shelves': str(book.popular_shelves),
-                    'publication_date': book.publication_date,
-                    'publisher': book.publisher,
-                    'rating_dist': book.rating_dist,
-                    'ratings_count': book.ratings_count,
-                    'reviews_widget': book.reviews_widget,
-                    'series_works': book.series_works,
-                    'similar_books': str(book.similar_books),
-                    'small_image_url': book.small_image_url,
-                    'text_reviews_count': book.text_reviews_count,
-                    'title': book.title,
-                    'work': book.work}
+            # Create the directory
+            os.mkdir(path)
 
-            json.dump(info, f)
+            url = book.image_url
+            response = requests.get(url)
+            if response.status_code == 200:
+                with open(path + '/cover.jpg', 'wb') as f:
+                    f.write(response.content)
+
+            with open(path + '/info.json', 'w') as f:
+
+                info = {'authors': str(book.authors) if book.authors else None,
+                        'average_rating': book.average_rating,
+                        'description': book.description,
+                        'edition_information': book.edition_information,
+                        'format': book.format,
+                        'gid': book.gid,
+                        'image_url': book.image_url,
+                        'is_ebook': book.is_ebook,
+                        'isbn': book.isbn,
+                        'isbn13': book.isbn13,
+                        'language_code': book.language_code,
+                        'link': book.link,
+                        'num_pages': book.num_pages,
+                        'popular_shelves': str(book.popular_shelves) if book.popular_shelves else None,
+                        'publication_date': book.publication_date,
+                        'publisher': book.publisher,
+                        'rating_dist': book.rating_dist,
+                        'ratings_count': book.ratings_count,
+                        'reviews_widget': book.reviews_widget,
+                        'series_works': book.series_works,
+                        'similar_books': str(book.similar_books) if book.similar_books else None,
+                        'small_image_url': book.small_image_url,
+                        'text_reviews_count': book.text_reviews_count,
+                        'title': book.title,
+                        'work': book.work}
+
+                json.dump(info, f)
+        else:
+            fail.append(gid)
 
     except Exception as e:
         logger.exception('{}'.format(e), exc_info=False)
